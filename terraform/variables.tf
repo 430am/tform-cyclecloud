@@ -63,3 +63,13 @@ variable "kv_pe_dns_zone" {
   type        = string
   default     = "privatelink.vaultcore.azure.net"
 }
+
+variable "tags" {
+  description = "Tags applied to all resources."
+  type        = map(string)
+  default = {
+    workload    = "cyclecloud"
+    environment = "landing-zone"
+    managed_by  = "terraform"
+  }
+}

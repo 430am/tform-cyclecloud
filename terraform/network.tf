@@ -4,6 +4,7 @@ resource "azurerm_public_ip" "bastion_ip" {
     name = "pip-${random_pet.naming.id}-bastion"
     resource_group_name = azurerm_resource_group.networking
     sku = "Standard"
+    tags = local.common_tags
 }
 
 resource "azurerm_public_ip" "nat_ip" {
@@ -12,6 +13,7 @@ resource "azurerm_public_ip" "nat_ip" {
     name = "pip-${random_pet.naming.id}-nat"
     resource_group_name = azurerm_resource_group.networking.name
     sku = "Standard"
+    tags = local.common_tags
 }
 
 resource "azurerm_virtual_network" "cc_network" {

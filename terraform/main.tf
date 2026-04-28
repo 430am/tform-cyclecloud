@@ -9,20 +9,28 @@ resource "random_pet" "naming" {
     separator = ""
 }
 
+resource "random_password" "cc_pass" {
+    length = 16
+    special = true
+}
+
 resource "azurerm_resource_group" "cyclecloud" {
     location = var.location
     name = "rg-${random_pet.naming.id}-cc"
+    tags = local.common_tags
 }
 
 resource "azurerm_resource_group" "networking" {
     location = var.location
     name = "rg-${random_pet.naming.id}-network"
+    tags = local.common_tags
 }
 
 resource "azurerm_user_assigned_identity" "cyclecloud_id" {
     location = azurerm_resource_group.cyclecloud.location
     name = "umi-${random_pet.naming.id}"
     resource_group_name = azurerm_resource_group.cyclecloud.name
+    tags = local.common_tags
 }
 
 resource "azurerm_role_definition" "ccrole" {
@@ -111,13 +119,4 @@ ephemeral "tls_private_key" "ssh_privatekey" {
 
 ephemeral "tls_public_key" "ssh_publickey" {
     private_key_openssh = ephemeral.tls_private_key.ssh_privatekey.private_key_openssh
-}
-
-resource "azurerm_storage_account" "store_bootdiagnostics" {
-    account_replication_type = "LRS"
-    account_tier = "StorageV2"
-    location = azurerm_resource_group.cyclecloud.location
-    name = "st${random_pet.naming.id}bootdiag"
-    resource_group_name = azurerm_resource_group.cyclecloud.name
-    
 }

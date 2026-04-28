@@ -9,6 +9,7 @@ resource "azurerm_key_vault" "kv" {
     purge_protection_enabled = false
     rbac_authorization_enabled = true
     public_network_access_enabled = false
+    tags = local.common_tags
 }
 
 resource "azurerm_private_endpoint" "kv_pe" {
@@ -16,6 +17,7 @@ resource "azurerm_private_endpoint" "kv_pe" {
     name = "pe-${random_pet.naming.id}-kv"
     resource_group_name = azurerm_resource_group.networking.name
     subnet_id = azurerm_subnet.pe_subnet.id
+    tags = local.common_tags
     
     private_service_connection {
         is_manual_connection = false
@@ -25,21 +27,23 @@ resource "azurerm_private_endpoint" "kv_pe" {
     }
     
     private_dns_zone_group {
-      name = "${azurerm_key_vault.kv.name}-zone"
+      name = "default"
       private_dns_zone_ids = [ azurerm_private_dns_zone.kv_zone.id ]
     }
 }
 
 resource "azurerm_private_dns_zone" "kv_zone" {
-    name = var.kv_pe_dns_zone
+    name = local.names.private_dns_zone_kv
     resource_group_name = azurerm_resource_group.networking.name
+    tags = local.common_tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "kv_link" {
     name = "${random_pet.naming.id}-kv-link"
     private_dns_zone_name = azurerm_private_dns_zone.kv_zone.name
     resource_group_name = azurerm_resource_group.networking.name
-    virtual_network_id = azurerm_virtual_network.cc_network.id   
+    virtual_network_id = azurerm_virtual_network.cc_network.id
+    tags = local.common_tags
 }
 
 resource "azurerm_role_assignment" "kv_admin" {
@@ -64,6 +68,14 @@ resource "azurerm_role_assignment" "kv_admin" {
     name = "ssh-${random_pet.naming.id}-public-key"
     value_wo = ephemeral.tls_public_key.ssh_publickey.public_key_openssh
     value_wo_version = 1
+
+    depends_on = [ azurerm_role_assignment.kv_admin ]
+ }
+
+ resource "azurerm_key_vault_secret" "kv_cc_pass" {
+    key_vault_id = azurerm_key_vault.kv.id
+    name = "${random_pet.naming.id}-cc-pass"
+    value = random_password.cc_pass.result
 
     depends_on = [ azurerm_role_assignment.kv_admin ]
  }
