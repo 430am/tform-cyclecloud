@@ -1,20 +1,27 @@
 data "azurerm_subscription" "current" {
 }
 
-resource "random_string" "random" {
-    length = 6
-    special = false
-    upper = false    
+data "azurerm_client_config" "current" {
+}
+
+resource "random_pet" "naming" {
+    length = 2
+    separator = ""
 }
 
 resource "azurerm_resource_group" "cyclecloud" {
     location = var.location
-    name = var.resource_group_name
+    name = "rg-${random_pet.naming.id}-cc"
 }
 
-resource "azurerm_user_assigned_identity" "cyclecloud-id" {
+resource "azurerm_resource_group" "networking" {
+    location = var.location
+    name = "rg-${random_pet.naming.id}-network"
+}
+
+resource "azurerm_user_assigned_identity" "cyclecloud_id" {
     location = azurerm_resource_group.cyclecloud.location
-    name = var.managed_identity_name
+    name = "umi-${random_pet.naming.id}"
     resource_group_name = azurerm_resource_group.cyclecloud.name
 }
 
@@ -92,9 +99,25 @@ resource "azurerm_role_definition" "ccrole" {
     assignable_scopes = [ data.azurerm_subscription.current.id ]
 }
 
-resource "azurerm_role_assignment" "ccid-roleassignment" {
-    principal_id = azurerm_user_assigned_identity.cyclecloud-id.principal_id
+resource "azurerm_role_assignment" "ccid_roleassignment" {
+    principal_id = azurerm_user_assigned_identity.cyclecloud_id.principal_id
     scope = data.azurerm_subscription.current.id
     role_definition_id = azurerm_role_definition.ccrole.role_definition_resource_id
 }
 
+ephemeral "tls_private_key" "ssh_privatekey" {
+    algorithm = "ED25519"
+}
+
+ephemeral "tls_public_key" "ssh_publickey" {
+    private_key_openssh = ephemeral.tls_private_key.ssh_privatekey.private_key_openssh
+}
+
+resource "azurerm_storage_account" "store_bootdiagnostics" {
+    account_replication_type = "LRS"
+    account_tier = "StorageV2"
+    location = azurerm_resource_group.cyclecloud.location
+    name = "st${random_pet.naming.id}bootdiag"
+    resource_group_name = azurerm_resource_group.cyclecloud.name
+    
+}

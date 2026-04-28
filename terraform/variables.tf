@@ -4,36 +4,6 @@ variable "location" {
   default     = "southcentralus"
 }
 
-variable "resource_group_name" {
-  description = "Name of the resource group to create"
-  type        = string
-  default     = "rg-cyclecloud"
-}
-
-variable "managed_identity_name" {
-  description = "Name of the user assigned managed identity to create"
-  type        = string
-  default     = "cyclecloud-id"
-}
-
-variable "nat_public_ip_name" {
-  description = "Name of the public IP to create for NAT gateway"
-  type        = string
-  default     = "pip-natgateway"
-}
-
-variable "bastion_public_ip_name" {
-  description = "Name of the public IP to create for Azure Bastion"
-  type        = string
-  default     = "pip-bastion"
-}
-
-variable "vnet_name" {
-  description = "Name of the virtual network to create"
-  type        = string
-  default     = "vnet-cyclecloud"
-}
-
 variable "vnet_address_space" {
   description = "Address space for the virtual network"
   type        = list(string)
@@ -86,4 +56,10 @@ variable "cc_username" {
   description = "Admin username for the CycleCloud VM"
   type        = string
   default     = "cyclecloudadmin"
+}
+
+variable "kv_pe_dns_zone" {
+  description = "DNS zone for the key vault private endpoint"
+  type        = string
+  default     = "privatelink.vaultcore.azure.net"
 }
