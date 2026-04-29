@@ -1,0 +1,122 @@
+#cloud-config
+
+runcmd:
+    - alias apt-get='apt-get -o DPkg::Lock::Timeout=-1'
+
+    # Install CycleCloud
+    - apt-get -y install gnupg2
+    - wget -qO - https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+    - echo 'deb https://packages.microsoft.com/repos/cyclecloud bionic main' > /etc/apt/sources.list.d/cyclecloud.list
+    - apt-get update
+    - apt-get install openjdk-8-jdk -y
+    - update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
+    - apt-get install -yq cyclecloud8=$CYCLECLOUDVERSION
+    - /opt/cycle_server/cycle_server await_startup
+
+    # Collect and process admin password and ssh public key
+    - bash /tmp/azcliinstaller.sh
+    - az login --identity --allow-no-subscriptions
+    - CCPASSWORD=\$(az keyvault secret show --name ccpassword --vault-name $KEYVAULT --query 'value' -o tsv)
+    - CCPUBKEY=\$(az keyvault secret show --name ccpubkey --vault-name $KEYVAULT --query 'value' -o tsv)
+    - escaped_CCPASSWORD=\$(printf '%s\n' "\$CCPASSWORD" | sed -e 's/[]\/\$*.^[]/\\\&/g')
+    - escaped_CCPUBKEY=\$(printf '%s\n' "\$CCPUBKEY" | sed -e 's/[]\/\$*.^[]/\\\&/g')
+    - sed -i "s/CCPASSWORD/\$escaped_CCPASSWORD/g" /tmp/${CYCLECLOUDACCOUNTFILE}
+    - sed -i "s/CCPUBKEY/\$escaped_CCPUBKEY/g" /tmp/${CYCLECLOUDACCOUNTFILE}
+
+    # Setup CycleCloud
+    - mv /tmp/$CYCLECLOUDACCOUNTFILE /opt/cycle_server/config/data/
+    - apt-get install -yq unzip python3-venv
+    - unzip /opt/cycle_server/tools/cyclecloud-cli.zip -d /tmp
+    - python3 /tmp/cyclecloud-cli-installer/install.py -y --installdir /home/${cyclecloud_admin_name}/.cycle --system
+    - runuser -l ${cyclecloud_admin_name} -c "/usr/local/bin/cyclecloud initialize --loglevel=debug --batch --url=http://localhost:8080 --verify-ssl=false --username=\"$cyclecloud_admin_name\" --password=\"\$CCPASSWORD\""
+    - mv /tmp/$AZURESUBSCRIPTIONFILE /opt/cycle_server/
+    - runuser -l ${cyclecloud_admin_name} -c '/usr/local/bin/cyclecloud account create -f /opt/cycle_server/$AZURESUBSCRIPTIONFILE'
+    - rm -f /opt/cycle_server/config/data/${CYCLECLOUDACCOUNTFILE}.imported
+$(create_cluster_cloudinit_commands)
+
+write_files:
+
+    - path: /tmp/$CYCLECLOUDACCOUNTFILE
+      content: |
+        [
+          {
+            "AdType": "Application.Setting",
+            "Name": "cycleserver.installation.initial_user",
+            "Value": "${cyclecloud_admin_name}"
+          },
+          {
+            "AdType": "AuthenticatedUser",
+            "Name": "${cyclecloud_admin_name}",
+            "RawPassword": "CCPASSWORD",
+            "Superuser": true
+          },
+          {
+            "AdType": "Credential",
+            "CredentialType": "PublicKey",
+            "Name": "${cyclecloud_admin_name}/public",
+            "PublicKey": "CCPUBKEY"
+          },
+          {
+            "AdType": "Application.Setting",
+            "Name": "cycleserver.installation.complete",
+            "Value": true
+          }
+        ]
+
+    - path: /tmp/$AZURESUBSCRIPTIONFILE
+      content: |
+        {
+          "Environment": "public",
+          "AzureRMUseManagedIdentity": true,
+          "AzureResourceGroup": "${cyclecloud_rg}",
+          "AzureRMApplicationId": " ",
+          "AzureRMApplicationSecret": " ",
+          "AzureRMSubscriptionId": "${azure_subscription_id}",
+          "AzureRMTenantId": " ${azure_tenant_id}",
+          "DefaultAccount": true,
+          "Location": "${cyclecloud_location}",
+          "Name": "${cyclecloud_subscription_name}",
+          "Provider": "azure",
+          "ProviderId": "${azure_subscription_id}",
+          "RMStorageAccount": "${cyclecloud_storage_account}",
+          "RMStorageContainer": "${cyclecloud_storage_container}",
+          "AcceptMarketplaceTerms": true
+        }
+
+    - path: /tmp/azcliinstaller.sh
+      content: |
+        function retry_installer(){
+            local attempts=0
+            local max=15
+            local delay=25
+
+            while true; do
+                ((attempts++))
+                "\$@" && {
+                    echo "CLI installed"
+                    break
+                } || {
+                    if [[ \$attempts -lt \$max ]]; then
+                        echo "CLI installation failed. Attempt \$attempts/\$max."
+                        sleep \$delay;
+                    else
+                        echo "CLI installation has failed after \$attempts attempts."
+                        break
+                    fi
+                }
+            done
+        }
+
+        function install_azure_cli(){
+            install_script="/tmp/azurecli_installer.sh"
+            curl -sL https://aka.ms/InstallAzureCLIDeb -o "\$install_script"
+            retry_installer sudo bash "\$install_script"
+            rm \$install_script
+        }
+
+        if ! command -v az &> /dev/null
+        then
+            echo "Installing Azure CLI"
+            install_azure_cli
+        fi
+$(create_cluster_cloudinit_files "$cyclecloud_subscription_name")

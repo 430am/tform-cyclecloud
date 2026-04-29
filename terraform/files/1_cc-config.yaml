@@ -6,7 +6,7 @@ apt:
     cyclecloud.list:
       source: deb [signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/cyclecloud stable main
     azure_cli.list:
-      source: deb [signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main
+      source: deb [signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ noble main
 
 package_update: true
 package_upgrade: true
@@ -17,3 +17,53 @@ packages:
   - apt-transport-https
   - openjdk-8-jre
   - cyclecloud8
+  - azure-cli
+
+write_files:
+  - path: /tmp/cyclecloud_account.json
+    content: |
+      [
+        {
+          "AdType": "Application.Setting",
+          "Name": "cycleserver.installation.initial_user",
+          "Value": "${cc_username}"
+        },
+        {
+          "AdType": "AuthenticatedUser",
+          "Name": "${cc_username}",
+          "RawPassword": "${azurerm_key_vault_secret.kv_password.value}",
+          "Superuser": true
+        },
+        {
+          "AdType": "Credential",
+          "CredentialType": "PublicKey",
+          "Name": "${cc_username}/public",
+          "PublicKey": "${azurerm_key_vault_secret.kv_public_key.value}"
+        },
+        {
+          "AdType": "Application.Setting",
+          "Name": "cycleserver.installation.complete",
+          "Value": true
+        }
+      ]
+  
+  -path: /tmp/azure_subscription.json
+    content: |
+      {
+        "Environment": "public",
+        "AzureRMUseManagedIdentity": true,
+        "AzureResourceGroup": "${azurerm_resource_group.cyclecloud.name}",
+        "AzureRMApplicationId": " ",
+        "AzureRMApplicationSecret": " ",
+        "AzureRMSubscriptionId": "${data.azurerm_client_config.current.subscription_id}",
+        "AzureRMTenantId": "${data.azurerm_client_config.current.tenant_id}",
+        "DefaultAccount": true,
+        "Location": "${azurerm_resource_group.cyclecloud.location}",
+        "Name": "${data.azurerm_client_config.current.subscription_name}",
+        "Provider": "azure",
+        "ProviderId": "${data.azurerm_client_config.current.subscription_id}",
+        "RMStorageAccount": "${azurerm_storage_account.cc_locker.name}",
+        "RMStorageContainer": "cyclecloud",
+        "AcceptMarketplaceTerms": true
+      }
+

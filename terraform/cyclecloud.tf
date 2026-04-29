@@ -39,9 +39,9 @@ resource "azurerm_linux_virtual_machine" "cc_vm" {
     }
     
     source_image_reference {
-      publisher = "Canonical"
-      offer = "ubuntu-24_04-lts"
-      sku = "server"
+      publisher = "microsoft-dsvm"
+      offer = "ubuntu-hpc"
+      sku = "2404"
       version = "latest"
     }
 
