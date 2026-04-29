@@ -43,3 +43,6 @@ override.tf.json
 # Optional local override patterns
 *.local.tfvars
 *.local.tfvars.json
+
+# working directory
+working/
